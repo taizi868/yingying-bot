@@ -1,15 +1,15 @@
 import os
 import json
 import logging
-from telegram import Update
+from telegram import Update, MessageEntity
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackContext
 )
-from openai import OpenAI
+import openai
 
 logging.basicConfig(level=logging.INFO)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai.api_key = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_API_MODEL", "gpt-3.5-turbo")
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "0"))
@@ -26,6 +26,15 @@ if os.path.exists("faq_data.json"):
 def is_authorized(chat_id):
     return str(chat_id) in ALLOWED_CHAT_IDS
 
+def is_mentioned(update: Update):
+    if not update.message:
+        return False
+    if update.message.entities:
+        for entity in update.message.entities:
+            if entity.type in ["mention", "text_mention"]:
+                return True
+    return False
+
 async def handle_message(update: Update, context: CallbackContext):
     message = update.message
     chat_id = message.chat_id
@@ -34,16 +43,19 @@ async def handle_message(update: Update, context: CallbackContext):
     if not is_authorized(chat_id):
         return
 
+    if not is_mentioned(update) and not message.text.startswith("/"):
+        return
+
     if text in FAQ_DATA:
         await message.reply_text(FAQ_DATA[text])
         return
 
     try:
-        response = client.chat.completions.create(
+        completion = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": text}]
         )
-        reply = response.choices[0].message.content
+        reply = completion["choices"][0]["message"]["content"]
         await message.reply_text(reply)
     except Exception as e:
         logging.exception(e)
