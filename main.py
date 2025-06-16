@@ -1,14 +1,15 @@
-
 import os
 import json
 import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackContext
-import openai
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackContext
+)
+from openai import OpenAI
 
 logging.basicConfig(level=logging.INFO)
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 OPENAI_MODEL = os.getenv("OPENAI_API_MODEL", "gpt-3.5-turbo")
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "0"))
@@ -19,8 +20,7 @@ if os.path.exists("faq_data.json"):
     with open("faq_data.json", "r", encoding="utf-8") as f:
         try:
             FAQ_DATA = {item["q"]: item["a"] for item in json.load(f)}
-        except Exception as e:
-            logging.warning("FAQ 加载失败: %s", e)
+        except Exception:
             FAQ_DATA = {}
 
 def is_authorized(chat_id):
@@ -39,14 +39,14 @@ async def handle_message(update: Update, context: CallbackContext):
         return
 
     try:
-        completion = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": text}]
         )
-        reply = completion["choices"][0]["message"]["content"]
+        reply = response.choices[0].message.content
         await message.reply_text(reply)
     except Exception as e:
-        logging.exception("OpenAI 错误:")
+        logging.exception(e)
         await message.reply_text("出错了，请联系管理员。")
 
 def main():
