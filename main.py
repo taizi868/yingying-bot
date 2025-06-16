@@ -3,9 +3,7 @@ import os
 import json
 import logging
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackContext
-)
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackContext
 import openai
 
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +19,8 @@ if os.path.exists("faq_data.json"):
     with open("faq_data.json", "r", encoding="utf-8") as f:
         try:
             FAQ_DATA = {item["q"]: item["a"] for item in json.load(f)}
-        except Exception:
+        except Exception as e:
+            logging.warning("FAQ 加载失败: %s", e)
             FAQ_DATA = {}
 
 def is_authorized(chat_id):
@@ -47,7 +46,7 @@ async def handle_message(update: Update, context: CallbackContext):
         reply = completion["choices"][0]["message"]["content"]
         await message.reply_text(reply)
     except Exception as e:
-        logging.exception(e)
+        logging.exception("OpenAI 错误:")
         await message.reply_text("出错了，请联系管理员。")
 
 def main():
@@ -57,4 +56,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
